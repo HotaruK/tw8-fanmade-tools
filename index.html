@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
+  <title>キャラクターステータス計算ツール</title>
+  <!-- Materialize CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+  <style>
+    h1 {
+      font-size: 3rem;
+    }
+    body {
+      background-color: #f9f9f9;
+      padding: 20px;
+      font-size: 1.5rem;
+    }
+    .card {
+      padding: 20px;
+    }
+    #characterData {
+      height: auto;
+      min-height: 3rem;
+      overflow: auto;
+    }
+    #resultText {
+      height: auto;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1 class="center-align">ルートエデン キャラクターステータス計算ツール</h1>
+      <p class="center-align">プレイヤーによる非公式ファンツールです。</p>
+
+      <p>キャラクターステータス</p>
+      <div class="input-field">
+        <textarea id="characterData" class="materialize-textarea" rows="10" placeholder="例：
+能力： POW54、 SPD52、 WIZ115
+技能： 吸血3、念動力3、第六感2、全力魔法2、...、POW+45、SPD+18、WIZ+51"></textarea>
+      </div>
+
+      <p>レベル</p>
+      <div class="input-field">
+        <input id="levelSelect" type="number" min="1" value="10">
+      </div>
+
+      <div class="center-align">
+        <button id="calcBtn" class="btn-large waves-effect waves-light blue">計算実行</button>
+      </div>
+
+      <p>計算結果</p>
+      <div class="input-field">
+        <textarea id="resultText" class="materialize-textarea" rows="20" readonly></textarea>
+      </div>
+
+      <div class="center-align">
+        <p>2025/1/17最終更新。ご意見・バグ報告はヴェーロ・ポータル（h02959）までお手紙をどうぞ。</p>
+        <p><a href="https://tw8.t-walker.jp/html/library/2d03b_skill.htm" target="_blank">技能一覧</a>のページはこちら。</p>
+      </div>
+    </div>
+  </div>
+<script>
+// ---------------------------------------------------
+// 1. スキルカテゴリのマップ
+// ---------------------------------------------------
+const skillCategoryMap = {
+  "戦技：体": [
+    "なぎ払い","吹き飛ばし","捨て身の一撃","鎧砕き","盾受け","拠点防御","武器改造","目潰し","生命力吸収","一斉発射","武器落とし","気絶攻撃","武器受け","力溜め","かばう","激痛耐性","乱れ撃ち","グラップル","踏みつけ","吸血","傷口をえぐる","限界突破","無差別攻撃","闘争心","バーサーク","吹き飛び耐性","切断","重量攻撃","特攻","貫通攻撃","鉄壁","集団戦術","喧嘩殺法","エネルギーバリア","ジャストガード"
+  ],
+  "汎用・体": [
+    "追跡","怪力","運搬","鼓舞","恫喝","破壊工作","呪詛耐性","毒耐性","大食い","威厳","ダッシュ","義侠心","水泳","騎乗","オーラ防御","氷結耐性","勇気","恥ずかしさ耐性","運転","捕食","焼却","ジャンプ","クライミング","火炎耐性","電撃耐性","宴会","元気","肉体改造","幸運","爆破","異形化","変形合体","根性","インビジブル融合","威圧"
+  ],
+  "戦技：技": [
+    "2回攻撃","援護射撃","咄嗟の一撃","零距離射撃","スナイパー","フェイント","残像","だまし討ち","クイックドロウ","盗み攻撃","暗殺","見切り","カウンター","おびき寄せ","串刺し","鎧無視攻撃","部位破壊","制圧射撃","スライディング","先制攻撃","投擲","敵を盾にする","決闘","切り込み","捕縛","弾幕","遊撃","受け流し","跳弾","レーザー射撃","不意打ち","牽制射撃","居合","弾道計算","防具改造"
+  ],
+  "汎用・技": [
+    "視力","物を隠す","ロープワーク","情報収集","目立たない","ダンス","殺気","変装","暗視","メカニック","操縦","早着替え","逃げ足","撮影","変身","空中浮遊","サバイバル","失せ物探し","忍び足","聞き耳","迷彩","盗み","ハッキング","早業","鍵開け","団体行動","闇に紛れる","地形耐性","環境耐性","流行知識","空中移動","空中ダッシュ","メイク","社会的信用","ドローン操縦"
+  ],
+  "戦技：心": [
+    "属性攻撃","戦闘知識","高速詠唱","念動力","気合い","呪詛","破魔","催眠術","恐怖を与える","誘導弾","衝撃波","野生の勘","範囲攻撃","マヒ攻撃","挑発","時間稼ぎ","手をつなぐ","罠使い","動物使い","精神攻撃","全力魔法","毒使い","地形の利用","継戦能力","魔力溜め","多重詠唱","リミッター解除","魔力吸収","牽制攻撃","霊力攻撃","連携攻撃","逃亡阻止","音響弾","精神汚染","幻影使い"
+  ],
+  "汎用・心": [
+    "動物と話す","誘惑","礼儀作法","コミュ力","存在感","覚悟","霊的防護","言いくるめ","世界知識","料理","医術","狂気耐性","第六感","救助活動","祈り","パフォーマンス","封印を解く","優しさ","暗号作成","ドーピング","慰め","奉仕","歌唱","楽器演奏","動画配信","学習力","演技","除霊","錬金術","魅了","正体を隠す","精神抵抗","ジャミング","降霊","インビジブル制御"
+  ]
+};
+
+// ---------------------------------------------------
+// 2. 入力文字列を解析する
+// ---------------------------------------------------
+function parseCharacterData(text) {
+  const abilities = { POW: 0, SPD: 0, WIZ: 0 };
+  const skillLineMatch = text.match(/技能：([^\n]+)/);
+  const abilityPlus = { POW: 0, SPD: 0, WIZ: 0 };
+  const skills = {};
+
+  // 能力: 例「能力： POW54、 SPD52、 WIZ115」
+  const abilityLineMatch = text.match(/能力：([^\n]+)/);
+  if (abilityLineMatch) {
+    const abilityLine = abilityLineMatch[1];
+    const powMatch = abilityLine.match(/POW\s*(\d+)/i);
+    const spdMatch = abilityLine.match(/SPD\s*(\d+)/i);
+    const wizMatch = abilityLine.match(/WIZ\s*(\d+)/i);
+    if (powMatch) abilities.POW = parseInt(powMatch[1], 10);
+    if (spdMatch) abilities.SPD = parseInt(spdMatch[1], 10);
+    if (wizMatch) abilities.WIZ = parseInt(wizMatch[1], 10);
+  }
+
+  if (skillLineMatch) {
+    const skillLine = skillLineMatch[1];
+    const skillParts = skillLine.split(/、|,/);
+    skillParts.forEach(part => {
+      part = part.trim();
+      // POW+xx 等の装備補正
+      const plusMatch = part.match(/^(POW|SPD|WIZ)\+(\d+)$/i);
+      if (plusMatch) {
+        const statKey = plusMatch[1].toUpperCase();
+        abilityPlus[statKey] += parseInt(plusMatch[2], 10);
+      } else {
+        // 通常技能
+        const skillMatch = part.match(/^(.+?)(\d+)$/);
+        if (skillMatch) {
+          const name = skillMatch[1].trim();
+          const level = parseInt(skillMatch[2], 10);
+          if (!skills[name]) skills[name] = 0;
+          skills[name] += level;
+        }
+      }
+    });
+  }
+
+  return { abilities, skills, abilityPlus };
+}
+
+// ---------------------------------------------------
+// 3. 装備非着用時の能力 = 最終能力 - abilityPlus
+// ---------------------------------------------------
+function getBaseAbilities(finalAbilities, plus) {
+  return {
+    POW: finalAbilities.POW - plus.POW,
+    SPD: finalAbilities.SPD - plus.SPD,
+    WIZ: finalAbilities.WIZ - plus.WIZ
+  };
+}
+
+// ---------------------------------------------------
+// 4. カテゴリごとの技能レベル合計
+// ---------------------------------------------------
+function getSkillCategoryTotals(skills) {
+  const result = {
+    "戦技：体": 0,
+    "汎用・体": 0,
+    "戦技：技": 0,
+    "汎用・技": 0,
+    "戦技：心": 0,
+    "汎用・心": 0
+  };
+  for (let category in skillCategoryMap) {
+    skillCategoryMap[category].forEach(skillName => {
+      if (skills[skillName]) {
+        result[category] += skills[skillName];
+      }
+    });
+  }
+  return result;
+}
+
+// ---------------------------------------------------
+// 5. 闘技場用パラメータを計算
+// ---------------------------------------------------
+function computeBattleParams(abilities, skillTotals, level) {
+  const { POW, SPD, WIZ } = abilities;
+  const hp = level * 10;
+  const atk = Math.max(POW, SPD, WIZ);
+  const def = Math.min(POW, SPD, WIZ);
+
+  return {
+    HP: hp,
+    POW,
+    SPD,
+    WIZ,
+    ATK: atk,
+    DEF: def,
+    命中: skillTotals["戦技：技"] + 10,
+    回避: skillTotals["汎用・技"] + 10,
+    攻撃: skillTotals["戦技：体"] + 10,
+    防御: skillTotals["汎用・体"] + 10,
+    特殊: skillTotals["戦技：心"] + 10,
+    抵抗: skillTotals["汎用・心"] + 10
+  };
+}
+
+// ---------------------------------------------------
+// 6. 結果をテキストエリアにまとめて表示
+// ---------------------------------------------------
+function displayResult(
+  baseAbilities,
+  finalAbilities,
+  battleParams,
+  skillTotals
+) {
+  let resultText = "";
+
+  // 装備非着用時
+  resultText += "◆ 装備非着用時の能力\n";
+  resultText += `POW: ${baseAbilities.POW}\n`;
+  resultText += `SPD: ${baseAbilities.SPD}\n`;
+  resultText += `WIZ: ${baseAbilities.WIZ}\n\n`;
+
+  // 装備込み
+  resultText += "◆ 装備込みの最終能力\n";
+  resultText += `POW: ${finalAbilities.POW}\n`;
+  resultText += `SPD: ${finalAbilities.SPD}\n`;
+  resultText += `WIZ: ${finalAbilities.WIZ}\n\n`;
+
+  // スキルカテゴリ別 合計レベル
+  resultText += "◆ スキルカテゴリ別 合計レベル\n";
+  for (const category of Object.keys(skillTotals)) {
+    resultText += `${category}: ${skillTotals[category]}\n`;
+  }
+  resultText += "\n";
+
+  // 闘技場用
+  resultText += "◆ 闘技場用パラメータ\n";
+  resultText += `HP   : ${battleParams.HP}\n`;
+  resultText += `POW  : ${battleParams.POW}\n`;
+  resultText += `SPD  : ${battleParams.SPD}\n`;
+  resultText += `WIZ  : ${battleParams.WIZ}\n`;
+  resultText += `ATK  : ${battleParams.ATK}\n`;
+  resultText += `DEF  : ${battleParams.DEF}\n`;
+  resultText += `命中 : ${battleParams.命中}\n`;
+  resultText += `回避 : ${battleParams.回避}\n`;
+  resultText += `攻撃 : ${battleParams.攻撃}\n`;
+  resultText += `防御 : ${battleParams.防御}\n`;
+  resultText += `特殊 : ${battleParams.特殊}\n`;
+  resultText += `抵抗 : ${battleParams.抵抗}\n`;
+
+  // テキストエリアにセット
+  document.getElementById("resultText").value = resultText;
+}
+
+// ---------------------------------------------------
+// ボタンクリックで計算
+// ---------------------------------------------------
+document.getElementById("calcBtn").addEventListener("click", () => {
+  const text = document.getElementById("characterData").value;
+  const level = parseInt(document.getElementById("levelSelect").value, 10) || 1;
+
+  // 1) 入力をパース
+  const parsed = parseCharacterData(text);
+
+  // 2) 装備非着用時
+  const baseAbilities = getBaseAbilities(parsed.abilities, parsed.abilityPlus);
+
+  // 3) カテゴリごとの技能合計
+  const skillTotals = getSkillCategoryTotals(parsed.skills);
+
+  // 4) 闘技場用パラメータ
+  const battleParams = computeBattleParams(parsed.abilities, skillTotals, level);
+
+  // 5) 結果表示(スキルトータル含む)
+  displayResult(baseAbilities, parsed.abilities, battleParams, skillTotals);
+});
+</script>
+</body>
+</html>
